@@ -864,6 +864,34 @@ run 5000000
 EOF
 done
 
+cat <<EOF >energy.sh
+#!/bin/bash
+
+Work=Plots_Auto
+if [ -d "$Work" ]; then rm -Rf $Work; fi
+mkdir Plots_Auto
+cp *.log ./Plots_Auto/plot.log
+cd Plots_Auto
+file_name=*.log
+grep "ENERGY: " $file_name > Energy_temp.dat
+grep -v -e "ABSOLUTE" -e "RELATIVE" Energy_temp.dat > Energy.dat
+rm Energy_temp.dat
+cat Energy.dat |awk '{print $2 " "$11}' > Kinetic.dat
+cp Kinetic.dat ./Kinetic.agr
+cat Energy.dat |awk '{print $2 " "$12}' > Total.dat
+cp Total.dat ./Total.agr
+cat Energy.dat |awk '{print $2 " "$13}' > Temp.dat
+cp Temp.dat ./Temp.agr
+cat Energy.dat |awk '{print $2 " "$14}' > Pot.dat
+cp Pot.dat ./Pot.agr
+cat Energy.dat |awk '{print $2 " "$17}' > Pressure.dat
+cp Pressure.dat ./Pressure.agr
+cat Energy.dat |awk '{print $2 " "$19}' > Volume.dat
+cp Volume.dat ./Volume.agr
+echo Done;
+
+EOF
+
 
 
 cat <<EOF > bash_for_gpu.sh
@@ -892,7 +920,7 @@ do
 	mkdir min_\$min
 	mv Minimization\$min.log ./min_\$min
 	cd min_\$min
-	source /home/vvithurshan/0014/vvarenthirarajah/Documents/2021_Reseach/scripts/energy.sh
+	source energy.sh
 	cd ../../
 done
 
