@@ -94,10 +94,12 @@ package require autoionize
 autoionize -psf solvate.psf -pdb solvate.pdb -sc 0.15 -o ionized
 EOF
 
-vmd -dispdev text -eofexit < ionize.tcl > ionize.log
+#vmd -dispdev text -eofexit < ionize.tcl > ionize.log
 
-cp ionized.psf ./PSF_${pdb_name}.psf
-cp ionized.pdb ./PDB_${pdb_name}.pdb
+# cp ionized.psf ./PSF_${pdb_name}.psf
+# cp ionized.pdb ./PDB_${pdb_name}.pdb
+cp dry_${pdb_name}.psf ./PSF_${pdb_name}.psf
+cp dry_${pdb_name}.pdb ./PDB_${pdb_name}.pdb
 # mv solvate.* ./processed_files
 # mv ionized.* ./processed_files
 # mv pdb* ./processed_files
@@ -109,24 +111,30 @@ cat <<EOF > restraint.tcl
 mol load psf PSF_${pdb_name}.psf pdb PDB_${pdb_name}.pdb
 mkdir restraint
 set all [atomselect top all]
-$all set beta 0
+\$all set beta 0
 set protein_1 [atomselect top "protein and not water and not ions"]
-$protein_1 set beta 1
-$all writepdb protein_1.pdb
+\$protein_1 set beta 1
+\$all writepdb protein_1.pdb
 set all [atomselect top all]
-$all set beta 0
+\$all set beta 0
 set protein_noh_2 [atomselect top "protein and noh and not water and not ions"]
-$protein_noh_2 set beta 1
-$all writepdb protein_noh_2.pdb
+\$protein_noh_2 set beta 1
+\$all writepdb protein_noh_2.pdb
 set all [atomselect top all]
-$all set beta 0
+\$all set beta 0
 set backbone_3 [atomselect top "backbone"]
-$backbone_3 set beta 1
-$all writepdb backbone_3.pdb
+\$backbone_3 set beta 1
+\$all writepdb backbone_3.pdb
+set all [atomselect top all]
+\$all set beta 0
+set sam [atomselect top "(chain A and resid 115 to 179) or (chain B and resid 115 to 179)"]
+\$sam set beta 1
+\$all writepdb sam.pdb
 
 mv protein_1.pdb ./restraint
 mv protein_noh_2.pdb ./restraint
 mv backbone_3.pdb ./restraint
+mv sam.pdb ./restraint 
 
 
 EOF
@@ -137,7 +145,8 @@ vmd -dispdev text -eofexit < restraint.tcl > restraint.log
 ### BOX Size
 
 cat <<EOF > boxsize.tcl
-mol load psf PSF_${pdb_name}.psf pdb PDB_${pdb_name}.pdb
+# mol load psf PSF_${pdb_name}.psf pdb PDB_${pdb_name}.pdb
+mol load psf solvate.psf pdb solvate.pdb
 proc get_cell {{molid top}} {
     set outfile [open "boxsize.txt" w]
     set all [atomselect \$molid all]
@@ -169,8 +178,8 @@ cat <<EOF > Minimization.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 # Simulation conditions
 temperature 0
@@ -266,8 +275,8 @@ cat <<EOF > Minimization2.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 set input Minimization
 binCoordinates \$input.restart.coor
@@ -282,8 +291,8 @@ CUDASOAintegrate off
 # Harmonic constraints
 
 constraints on
-consref ./restraint/protein_noh_2.pdb
-conskfile ./restraint/protein_noh_2.pdb
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
 constraintScaling 100
 consexp 2
 conskcol B
@@ -372,8 +381,8 @@ cat <<EOF > Minimization3.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 set input Minimization2
 binCoordinates \$input.restart.coor
@@ -388,8 +397,8 @@ CUDASOAintegrate off
 # Harmonic constraints
 
 constraints on
-consref ./restraint/backbone_3.pdb
-conskfile ./restraint/backbone_3.pdb
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
 constraintScaling 100
 consexp 2
 conskcol B
@@ -485,10 +494,10 @@ CUDASOAintegrate off
 
 # Harmonic constraints
 
-constraints off
-consref fixed.pdb
-conskfile fixed.pdb
-constraintScaling 25
+constraints on
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
+constraintScaling 100
 consexp 2
 conskcol B
 
@@ -571,8 +580,8 @@ cat <<EOF > Annealing.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 set input Minimization4
 binCoordinates \$input.restart.coor
@@ -587,9 +596,9 @@ CUDASOAintegrate on
 # Harmonic constraints
 
 constraints on
-consref ./restraint/backbone_3.pdb
-conskfile ./restraint/backbone_3.pdb
-constraintScaling 20
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
+constraintScaling 100
 consexp 2
 conskcol B
 
@@ -598,9 +607,9 @@ set output Annealing
 
 binaryoutput no
 outputname \$output
-outputenergies 100
-outputtiming 100
-outputpressure 100
+outputenergies 500
+outputtiming 500
+outputpressure 500
 binaryrestart yes
 dcdfile \$output.dcd
 dcdfreq 10000
@@ -656,9 +665,9 @@ wrapAll on
 wrapWater on
 
 # Script
-set Temp 300
+set Temp 1000
 set barostat 0
-set nSteps  300
+set nSteps  500
 for {set t 0} {\$t <= \$Temp} {incr t} {run \$nSteps;langevintemp \$t;if {\$barostat} {langevinpistontemp \$t}}
 
 
@@ -673,8 +682,8 @@ cat <<EOF > Equilibration.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 set input Annealing
 
@@ -690,9 +699,9 @@ CUDASOAintegrate on
 # Harmonic constraints
 
 constraints on
-consref ./restraint/backbone_3.pdb
-conskfile ./restraint/backbone_3.pdb
-constraintScaling 20
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
+constraintScaling 100
 consexp 2
 conskcol B
 
@@ -774,8 +783,8 @@ cat <<EOF > MD$MD.conf
 ##START HERE###
 ##Simulation Template##
 # Simulation conditions
-coordinates $pdb_name.pdb
-structure $pdb_name.psf
+coordinates PDB_${pdb_name}.pdb
+structure PSF_${pdb_name}.psf
 
 set input MD_$((MD-1))
 
@@ -790,10 +799,10 @@ CUDASOAintegrate on
 
 # Harmonic constraints
 
-constraints off
-consref ./restraint/pocket_md.pdb
-conskfile ./restraint/pocket_md.pdb
-constraintScaling 10
+constraints on
+consref ./restraint/sam.pdb
+conskfile ./restraint/sam.pdb
+constraintScaling 100
 consexp 2
 conskcol B
 
@@ -808,7 +817,7 @@ outputtiming 5000
 outputpressure 5000
 binaryrestart yes
 dcdfile \$output.dcd
-dcdfreq 2000
+dcdfreq 5000
 XSTFreq 1000
 restartfreq 5000
 restartname \$output.restart
